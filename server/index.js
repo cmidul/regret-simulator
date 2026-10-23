@@ -6,13 +6,13 @@ import { SYSTEM_PROMPT, RETRY_PROMPT } from './prompt.js'
 const PORT = process.env.PORT || 3001
 const OLLAMA = process.env.OLLAMA_HOST || 'http://localhost:11434'
 
-// Public deployments sit behind a platform proxy (Railway, Fly, nginx). Without
-// this, req.ip is the proxy for every visitor and the rate limiter below would
-// throttle the whole world as one client.
+// Public deployments sit behind a platform proxy (Railway, Fly, nginx, a
+// cloudflared tunnel). Without this, req.ip is the proxy for every visitor and
+// the rate limiter below would throttle the whole world as one client.
 const TRUST_PROXY = process.env.TRUST_PROXY
-if (TRUST_PROXY) app.set('trust proxy', Number(TRUST_PROXY) || 1)
 
 const app = express()
+if (TRUST_PROXY) app.set('trust proxy', Number(TRUST_PROXY) || 1)
 app.use(express.json({ limit: '64kb' }))
 
 // ---- Abuse protection ------------------------------------------------------
