@@ -1,5 +1,7 @@
 # Regret Simulator
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-38bdf8.svg)](LICENSE)
+
 See the best, likely, and worst outcome of any decision — then rewrite the odds and watch the verdict move.
 
 Everything runs on your machine. Your decision never leaves your laptop.
@@ -269,4 +271,4 @@ Dockerfile          Two-stage: build the UI, then run API + UI + Ollama
 
 ## License
 
-No license file yet — all rights reserved by default. Add one before accepting contributions.
+[MIT](LICENSE) © 2026 cmidul. Use it, change it, ship it — attribution appreciated but not required.
