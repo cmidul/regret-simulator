@@ -1,0 +1,14 @@
+# Single site, automatic HTTPS. The app serves the UI and the API on one
+# origin, so there is only ever one upstream to proxy to.
+{$SITE_URL}
+
+encode gzip
+reverse_proxy app:8080
+
+# The NDJSON stream must not be buffered or the progress view stalls until the
+# whole generation lands. Caddy does not buffer by default, but being explicit
+# here documents the constraint for anyone editing this later.
+header {
+	# Belt and braces alongside the server's own X-Accel-Buffering.
+	?X-Accel-Buffering no
+}

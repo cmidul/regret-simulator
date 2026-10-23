@@ -1,0 +1,47 @@
+# Turnkey deployment for any Docker host — a VPS being the usual one.
+#
+#   SITE_URL=your.domain docker compose up -d
+#
+# Caddy obtains and renews a Let's Encrypt certificate automatically, so there
+# is no certbot cron to forget about. Point DNS at the box first or Caddy will
+# retry until it succeeds (which is fine, it recovers on its own).
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    # Bound to loopback: the app should only ever be reachable through Caddy.
+    ports:
+      - '127.0.0.1:8080:8080'
+    environment:
+      MODEL: ${MODEL:-gemma3:4b}
+      MAX_CONCURRENT: ${MAX_CONCURRENT:-2}
+      RATE_MAX: ${RATE_MAX:-6}
+      # One proxy in front (Caddy). Without this the rate limiter sees Caddy's
+      # IP for every visitor and throttles the entire site as a single client.
+      TRUST_PROXY: '1'
+    volumes:
+      - ollama-models:/models
+    # A 4-bit 4B model needs ~4 GB on its own. Give the container a ceiling so a
+    # pathological request cannot take the whole box down with it.
+    mem_limit: 6g
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      SITE_URL: ${SITE_URL:?set SITE_URL to the domain pointing at this host}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+
+volumes:
+  ollama-models:
+  caddy-data:
+  caddy-config:
