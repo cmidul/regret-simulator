@@ -70,19 +70,29 @@ There's a Node proxy rather than calling Ollama from the browser. Two reasons: O
 
 ## Quick start
 
-### Prerequisites
+### 1. Prerequisites
 
-- **Node.js 18+** (needs global `fetch` and `AbortSignal.timeout`)
-- **[Ollama](https://ollama.com)** running locally with at least one model pulled
+- **Node.js 18+** — verify with `node --version`. The server uses global `fetch` and `AbortSignal.timeout`, which land in 18.
+- **[Ollama](https://ollama.com/download)** — macOS, Windows and Linux.
+
+### 2. Get a model
 
 ```bash
-ollama pull gemma3:4b   # or whatever fits your hardware
-ollama serve
+ollama pull gemma3:4b    # ~3 GB download, needs ~5 GB of free RAM to run
+ollama list              # should now show the model
 ```
 
-The app auto-detects the first model Ollama reports, so any model works — smaller ones are just slower and more prone to needing the retry pass.
+Any instruct model works — the app reads whatever Ollama reports and uses the first one. Size is the main trade-off:
 
-### Run it
+| Model size | RAM to run | What to expect |
+|---|---|---|
+| 1–3B | ~3 GB | Fastest, but noticeably more malformed output and retry passes |
+| 3–8B | ~5–8 GB | The sweet spot for a laptop |
+| 14B+ | ~16 GB+ | Much better reasoning, but expect multi-minute waits on a CPU |
+
+**If `ollama list` says it can't connect**, the daemon isn't running. The desktop app and the Windows/macOS installers start it automatically, but a bare Linux install does not — run `ollama serve` in a separate terminal. After installing, open a *new* terminal so `ollama` is on your `PATH`.
+
+### 3. Clone and run
 
 ```bash
 git clone https://github.com/cmidul/regret-simulator.git
@@ -91,9 +101,15 @@ npm install
 npm run dev
 ```
 
-`npm run dev` starts both the Express server and Vite together via `concurrently`. Open **http://localhost:5173**.
+Open **http://localhost:5173**.
 
-The header shows a green dot once it reaches Ollama. If it's red, Ollama isn't running — start it with `ollama serve` and the app will recover on its own.
+`npm run dev` starts two processes via `concurrently` — Vite on **5173** and the API on **3001**, with Vite proxying `/api` across. If either port is busy, stop whatever is holding it.
+
+### 4. Check it worked
+
+The dot in the top-right corner turns **green** once the server reaches Ollama, and shows the model name it picked. If it's **red**, Ollama isn't reachable — start it and the app recovers on its own, no reload needed.
+
+Then type a real decision and press **Simulate Regret**. On a laptop CPU the first run takes **1–3 minutes**; the progress panel fills in as each section of the JSON finishes parsing, so it shouldn't look hung.
 
 ## Configuration
 
@@ -114,7 +130,7 @@ These matter once the app is public. Defaults are deliberately conservative.
 
 | Variable | Default | |
 |---|---|---|
-| `MODEL` | `gemma3:4b` | Which tag to pull and prefer. Falls back to whatever Ollama has. |
+| `MODEL` | unset locally, `gemma3:4b` in Docker | Pin a specific tag to pull and prefer. Left unset, the app uses whichever model Ollama reports first. |
 | `MAX_CONCURRENT` | `2` | Hard cap on simultaneous generations. |
 | `RATE_MAX` | `6` | Simulations allowed per IP per `RATE_WINDOW_MS`. |
 | `RATE_WINDOW_MS` | `600000` | The rate-limit window (10 minutes). |
@@ -128,17 +144,31 @@ In production the Express server also serves the built UI, so one process handle
 
 If the budget is zero, you can share a working link today without any hosting at all. `cloudflared` gives your local app a public HTTPS URL through Cloudflare — no account, no card.
 
-On Windows, double-click **`share.cmd`**. It starts Ollama, builds the UI, launches the app, and opens a tunnel, leaving the share URL in its own window. Or by hand:
+**Windows:** double-click **`share.cmd`** in the project folder. It starts Ollama if needed, builds the UI, launches the app, and opens a tunnel, leaving the share URL in its own window. Keep all the windows it opens.
+
+**macOS / Linux** — install [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/), then run these in two separate terminals:
 
 ```bash
+# terminal 1 — the app
 npm run build
-NODE_ENV=production TRUST_PROXY=1 node server/index.js
+TRUST_PROXY=1 RATE_MAX=10 node server/index.js
+```
+
+```bash
+# terminal 2 — the tunnel
 cloudflared tunnel --url http://localhost:3001
+```
+
+PowerShell users need the env vars set separately, since inline `VAR=x command` syntax is POSIX-only:
+
+```powershell
+npm run build
+$env:TRUST_PROXY = "1"; $env:RATE_MAX = "10"; node server/index.js
 ```
 
 `TRUST_PROXY=1` matters here: cloudflared terminates every connection, so without it the rate limiter sees one IP for the entire internet and throttles all your visitors as a single client.
 
-The trade-offs are real. The link only lives while your machine is on and the three processes keep running, and it changes every time you restart the tunnel. It's a good way to let people try the thing; it is not a deployment.
+The trade-offs are real. The link only lives while your machine is on and all the processes keep running, and it changes every time you restart the tunnel. It's a good way to let people try the thing; it is not a deployment.
 
 ### Build it
 
@@ -175,18 +205,26 @@ Both are in-process, which is correct for a single container. If you ever scale 
 
 ## Testing
 
+The first three are pure unit tests — no Ollama and no server required:
+
 ```bash
 node test/regret.test.js     # expected-regret math, dominance, runner-up   35
 node test/sanitize.test.js   # model-output normalisation                   26
 node test/stream.test.js     # incremental JSON extraction                   8
-node test/e2e.test.js        # full run against a live model (slow)
 ```
 
-69 unit assertions, no test framework — plain Node scripts with a pass/fail counter, so they run in CI without a runner installed.
+69 assertions across them, no test framework — plain Node scripts with a pass/fail counter, so they run in CI without a runner installed.
+
+`e2e.test.js` is different: it posts to `http://localhost:3001/api/simulate`, so it needs **both** Ollama running and the dev server up (`npm run dev` in another terminal, or `npm start` after a build). Then:
+
+```bash
+node test/e2e.test.js
+node test/e2e.test.js "Should I take the remote job or the office one?"
+```
+
+Expect a few minutes, since it waits on a real generation. It writes the raw model response to `test/last-raw.txt` (gitignored) so you can inspect it when something looks off.
 
 The suites that matter most are the boring ones. `sanitize.test.js` is a museum of every way a small model has actually failed in practice, and it's why a weird reply degrades into a warning banner instead of a broken page.
-
-`e2e.test.js` hits a live model, so expect a few minutes. It writes the raw model response to `test/last-raw.txt` (gitignored) for inspection when something looks off.
 
 ## Project structure
 
@@ -212,6 +250,22 @@ Dockerfile          Two-stage: build the UI, then run API + UI + Ollama
 - **Latency is hardware-bound.** On a laptop CPU, expect 1–3 minutes depending on how many options the model invents. The progress view is designed around that: stages light up as their section finishes parsing.
 - **Incomplete sections are normal, and handled.** Smaller models sometimes skip `hedge_plan` or the verdict's reasoning. The app flags the gap and carries on rather than failing the run.
 - **No data leaves your machine.** There's no analytics, no telemetry, and no network call that doesn't go to your own Ollama instance.
+
+## Troubleshooting
+
+**Red dot in the header** — the server can't reach Ollama. Confirm with `ollama list`. If that fails, the daemon isn't running: `ollama serve`, or start the desktop app. The app polls and recovers by itself, so no reload is needed.
+
+**`ollama` is not recognized** — the installer updates `PATH` for new processes only. Open a fresh terminal, or on Windows sign out and back in.
+
+**`EADDRINUSE` on 3001 or 5173** — something else holds the port. On Windows: `Get-NetTCPConnection -LocalPort 3001 -State Listen` then `Stop-Process -Id <pid>`. On macOS/Linux: `lsof -i :3001`.
+
+**Out of memory, or Ollama exits on load** — the model is too large for your RAM. `ollama pull` something smaller and the app picks it up on the next run.
+
+**Runs take many minutes** — CPU inference. `think: false` and `temperature: 0.4` are already tuned for speed here; the remaining levers are a smaller model or a GPU. This is also why the app streams progress instead of showing a spinner.
+
+**Half the sections are missing** — a small model occasionally skips `hedge_plan` or the verdict's reasoning. The app warns and keeps going rather than failing. Re-running usually fills them in.
+
+**JSON parse errors in the console** — the client retries once automatically. If it keeps happening, your model is likely too small for the schema; try 4B or larger.
 
 ## License
 

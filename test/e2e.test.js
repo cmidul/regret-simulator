@@ -3,12 +3,15 @@
 import { extractTopLevel, parseComplete } from '../src/lib/stream.js'
 import { sanitize, coverage } from '../src/lib/sanitize.js'
 
+// Prerequisite: the dev server must already be running (`npm run dev` in
+// another terminal) — this hits the local endpoint, not Ollama directly.
+// Pass a decision as argv[2] to test something else.
 const decision =
   process.argv[2] ||
   'I have an exam tomorrow, but my project deadline is tonight. What should I prioritize?'
 
 console.log('decision:', decision)
-console.log('waiting on model (expect 45-60s)...\n')
+console.log('waiting on model (expect 1-3 minutes on a CPU)...\n')
 
 const t0 = Date.now()
 const res = await fetch('http://localhost:3001/api/simulate', {
