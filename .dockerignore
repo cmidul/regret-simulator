@@ -1,0 +1,10 @@
+# Build context hygiene. Anything here bloats the upload and can shadow the
+# `npm ci` inside the image.
+node_modules
+dist
+.git
+.gitignore
+test
+*.md
+npm-debug.log*
+.DS_Store

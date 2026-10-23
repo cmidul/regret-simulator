@@ -108,6 +108,55 @@ Both are optional environment variables.
 OLLAMA_HOST=http://localhost:11434 PORT=3001 npm run dev
 ```
 
+### Server-only variables
+
+These matter once the app is public. Defaults are deliberately conservative.
+
+| Variable | Default | |
+|---|---|---|
+| `MODEL` | `gemma3:4b` | Which tag to pull and prefer. Falls back to whatever Ollama has. |
+| `MAX_CONCURRENT` | `2` | Hard cap on simultaneous generations. |
+| `RATE_MAX` | `6` | Simulations allowed per IP per `RATE_WINDOW_MS`. |
+| `RATE_WINDOW_MS` | `600000` | The rate-limit window (10 minutes). |
+| `TRUST_PROXY` | unset | Number of proxies in front of the app. **Set this in production** or the rate limiter treats every visitor as the same IP. |
+
+## Deploying
+
+In production the Express server also serves the built UI, so one process handles both the API and the page. The client already calls `/api/*` with relative URLs, so there is no second origin and nothing to configure for CORS.
+
+### Build it
+
+```bash
+npm run build      # produces dist/
+npm start          # serves dist/ + the API on PORT
+```
+
+### Docker
+
+```bash
+docker build -t regret-simulator .
+docker run -p 8080:8080 -v ollama-models:/models regret-simulator
+```
+
+The image ships the app and the Ollama binary. The **model is pulled at first boot** into the `/models` volume — about 3 GB, once. Later boots find it already there and start in seconds. Baking the model into the image would push it past 5 GB and force a re-upload on every rebuild, so the volume is doing real work here; mount one in your platform config or the download repeats on every deploy.
+
+The entrypoint starts Ollama, waits for it to accept requests, pulls `MODEL` if missing, then `exec`s node so it becomes PID 1 and receives SIGTERM on redeploy.
+
+### Sizing
+
+A 4-bit 4B model needs roughly **4 GB of RAM** for the model plus headroom for the runtime, so **8 GB is the safe floor** for a box also serving Node. CPU-only inference is the bottleneck: expect well over a minute per run on shared cores, which is inside the window the progress view was designed for but will feel slow under load. That is exactly why `MAX_CONCURRENT` defaults to 2 — Ollama serialises onto the CPU anyway, and queueing more just adds latency for everyone.
+
+If it needs to be fast, the lever is a GPU instance, not more vCPUs.
+
+### What the guards do
+
+Two things protect a public instance, because each generation burns minutes of CPU:
+
+- **Per-IP rate limit** — returns `429` with a `Retry-After` header. Invalid requests count against it too, so probing the endpoint is not free.
+- **Concurrency cap** — refuses with `503` rather than queueing, since a queued generation only delays everyone already waiting.
+
+Both are in-process, which is correct for a single container. If you ever scale to multiple replicas you'll need shared state or an external limiter.
+
 ## Testing
 
 ```bash
@@ -127,7 +176,7 @@ The suites that matter most are the boring ones. `sanitize.test.js` is a museum 
 
 ```
 server/
-  index.js          Express proxy, NDJSON streaming, /api/health
+  index.js          Express proxy, NDJSON streaming, static UI, rate limits
   prompt.js         The schema contract and retry nudges
 src/
   App.jsx           Orchestration, retry loop, verdict callout
@@ -136,7 +185,10 @@ src/
     stream.js       Incremental JSON extractor + NDJSON reader
     sanitize.js     Model-output normalisation
     regret.js       Expected-regret math, dominance detection
+docker/
+  entrypoint.sh     Boots Ollama, ensures the model, starts the app
 test/               Unit suites + live e2e
+Dockerfile          Two-stage: build the UI, then run API + UI + Ollama
 ```
 
 ## Notes
