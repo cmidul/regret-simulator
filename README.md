@@ -124,6 +124,22 @@ These matter once the app is public. Defaults are deliberately conservative.
 
 In production the Express server also serves the built UI, so one process handles both the API and the page. The client already calls `/api/*` with relative URLs, so there is no second origin and nothing to configure for CORS.
 
+### Free, right now: a tunnel off your own machine
+
+If the budget is zero, you can share a working link today without any hosting at all. `cloudflared` gives your local app a public HTTPS URL through Cloudflare — no account, no card.
+
+On Windows, double-click **`share.cmd`**. It starts Ollama, builds the UI, launches the app, and opens a tunnel, leaving the share URL in its own window. Or by hand:
+
+```bash
+npm run build
+NODE_ENV=production TRUST_PROXY=1 node server/index.js
+cloudflared tunnel --url http://localhost:3001
+```
+
+`TRUST_PROXY=1` matters here: cloudflared terminates every connection, so without it the rate limiter sees one IP for the entire internet and throttles all your visitors as a single client.
+
+The trade-offs are real. The link only lives while your machine is on and the three processes keep running, and it changes every time you restart the tunnel. It's a good way to let people try the thing; it is not a deployment.
+
 ### Build it
 
 ```bash
