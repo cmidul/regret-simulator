@@ -1,0 +1,255 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+/* Hard-coded font resolution. Tailwind sets the same stack on `body`, but this
+   guarantees a font with a real Latin glyph set wins even if the config is
+   overridden or a bad local font sits earlier in the chain. */
+html,
+body,
+#root {
+  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+html {
+  /* Prevents the whole page rubber-banding while dragging sliders. */
+  overscroll-behavior: none;
+}
+
+@media (pointer: fine) {
+  html {
+    overscroll-behavior: none;
+  }
+}
+
+body {
+  @apply bg-slate-950 text-slate-100 antialiased;
+  overflow-x: hidden;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(56, 189, 248, 0.14), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(168, 85, 247, 0.09), transparent),
+    radial-gradient(ellipse 50% 40% at 0% 100%, rgba(52, 211, 153, 0.07), transparent);
+  background-attachment: fixed;
+}
+
+code,
+pre,
+.font-mono {
+  font-family: Consolas, ui-monospace, SFMono-Regular, Menlo, Monaco, 'Courier New', monospace;
+}
+
+/* Safe-area padding so full-bleed sections clear notches. */
+.app-header,
+.app-main,
+.app-footer {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+.app-main {
+  padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+}
+
+/* ---- Focus -------------------------------------------------------------
+   One consistent, visible focus treatment for every interactive control.
+   :focus-visible so a mouse click never paints a ring, but keyboard use always
+   does. The textarea opts into a ring instead (see DecisionForm). */
+:where(a, button, input, select, summary, [tabindex]):focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ---- Touch ------------------------------------------------------------- */
+button,
+input,
+textarea,
+select,
+a {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(56, 189, 248, 0.18);
+}
+
+/* ---- Typography -------------------------------------------------------- */
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+/* ---- Components -------------------------------------------------------- */
+@layer components {
+  .panel {
+    @apply rounded-2xl border border-slate-800 bg-slate-900/60;
+    /* Inner hairline + lift: reads as a layered surface rather than a flat box. */
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.04),
+      0 1px 2px 0 rgba(0, 0, 0, 0.4),
+      0 12px 32px -16px rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(12px);
+  }
+
+  .label-caps {
+    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400;
+  }
+
+  .btn-primary {
+    @apply relative inline-flex items-center gap-2 rounded-xl bg-sky-500 px-6 py-2.5 text-sm font-semibold text-slate-950;
+    box-shadow: 0 8px 20px -10px rgba(56, 189, 248, 0.9);
+    transition:
+      background-color 0.18s ease,
+      box-shadow 0.18s ease,
+      transform 0.12s ease;
+  }
+  .btn-primary:hover:not(:disabled) {
+    @apply bg-sky-400;
+    box-shadow: 0 12px 26px -10px rgba(56, 189, 248, 1);
+  }
+  .btn-primary:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  .btn-primary:disabled {
+    @apply cursor-not-allowed bg-slate-700 text-slate-400;
+    box-shadow: none;
+  }
+
+  .btn-ghost {
+    @apply rounded-xl border border-slate-700 px-5 py-2.5 text-sm font-medium text-slate-300;
+    transition:
+      border-color 0.18s ease,
+      color 0.18s ease,
+      background-color 0.18s ease;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    @apply border-slate-500 bg-slate-800/60 text-slate-100;
+  }
+  .btn-ghost:disabled {
+    @apply cursor-not-allowed opacity-40;
+  }
+}
+
+/* ---- Range sliders -----------------------------------------------------
+   The Probability Lab is the core interaction, so the track fills with the
+   scenario colour as you drag (set inline from the current weight). */
+input[type='range'] {
+  @apply h-2 w-full cursor-pointer appearance-none rounded-full;
+  background: rgba(148, 163, 184, 0.2);
+  transition: background-color 0.2s ease;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 18px;
+  width: 18px;
+  border-radius: 9999px;
+  background: #e2e8f0;
+  border: 2px solid #0f172a;
+  box-shadow: 0 0 0 3px rgba(226, 232, 240, 0.15);
+  transition: transform 0.15s ease;
+}
+
+input[type='range']::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+input[type='range']:focus-visible {
+  outline: none;
+}
+input[type='range']:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.55);
+}
+input[type='range']:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.55);
+}
+
+input[type='range']::-moz-range-thumb {
+  height: 16px;
+  width: 16px;
+  border-radius: 9999px;
+  background: #e2e8f0;
+  border: 2px solid #0f172a;
+}
+
+input[type='range'].tone-best::-webkit-slider-thumb {
+  background: #34d399;
+}
+input[type='range'].tone-likely::-webkit-slider-thumb {
+  background: #fbbf24;
+}
+input[type='range'].tone-worst::-webkit-slider-thumb {
+  background: #f87171;
+}
+input[type='range'].tone-best::-moz-range-thumb {
+  background: #34d399;
+}
+input[type='range'].tone-likely::-moz-range-thumb {
+  background: #fbbf24;
+}
+input[type='range'].tone-worst::-moz-range-thumb {
+  background: #f87171;
+}
+
+/* ---- Motion ------------------------------------------------------------ */
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.pulse-soft {
+  animation: pulse-soft 1.6s ease-in-out infinite;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise {
+  animation: rise 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* Reduced motion: every animation and transition in the app, not just the two
+   named keyframe classes (the spinner and utility transitions were missed). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .rise,
+  .pulse-soft {
+    animation: none;
+  }
+}
